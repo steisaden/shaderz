@@ -70,6 +70,7 @@ uniform float uLineWidth;
 uniform float uPerspective;
 uniform float uHorizon;
 uniform float uGridGlow;
+uniform float uGlobalSpeed;
 uniform float uFogIntensity;
 uniform float uFogSpeed;
 uniform float uGrainAmount;
@@ -149,6 +150,7 @@ float fbm(vec2 p) {
 }
 
 void main() {
+    float motionTime = iTime * uGlobalSpeed;
     vec2 p = (gl_FragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
     vec3 col = uColorBase;
     float pY = p.y - uHorizon;
@@ -158,7 +160,7 @@ void main() {
         float yDist = abs(pY);
         float py = max(yDist, 0.001);
         vec2 gridP = vec2(p.x / (py * uPerspective), 1.0 / (py * uPerspective));
-        float timeMove = iTime * 0.5;
+        float timeMove = motionTime * 0.5;
         gridP.y -= timeMove;
         
         vec2 gridUV = fract(gridP * uGridScale);
@@ -180,7 +182,7 @@ void main() {
         col = mix(col, floorEmissive, fade * isFloor);
     }
     
-    float tFog = iTime * uFogSpeed;
+    float tFog = motionTime * uFogSpeed;
     vec2 fogUV1 = p * 1.5 + vec2(tFog * 0.5, tFog * 0.2);
     float noise1 = fbm(fogUV1) * 0.5 + 0.5;
     col += uColorFogPurple * noise1 * 0.5 * uFogIntensity;
@@ -192,7 +194,7 @@ void main() {
     vec2 accentPos = vec2(0.8, -0.5);
     float accentDist = length(p - accentPos);
     float accentGlow = exp(-accentDist * 2.5);
-    float pulse = sin(iTime * 1.5) * 0.1 + 0.9;
+    float pulse = sin(motionTime * 1.5) * 0.1 + 0.9;
     col += uColorAccent * accentGlow * pulse * 0.8 * uFogIntensity;
     
     float horizonGlow = exp(-abs(pY) * 3.0);
@@ -202,7 +204,7 @@ void main() {
     col *= 1.0 - smoothstep(0.5, uVignette * 2.0, vig);
     
     vec2 uv = gl_FragCoord.xy / iResolution.xy;
-    float grain = hash(uv + fract(iTime)) - 0.5;
+    float grain = hash(uv + fract(motionTime)) - 0.5;
     col += grain * uGrainAmount;
     
     col = col * col * (3.0 - 2.0 * col);
@@ -299,22 +301,46 @@ export default function NeonFogGrid({
 
     const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
     const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
-    if (!vertexShader || !fragmentShader) return;
+    if (!vertexShader || !fragmentShader) {
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      return;
+    }
 
     const program = gl.createProgram();
-    if (!program) return;
+    if (!program) {
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      return;
+    }
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       console.error('Program link error:', gl.getProgramInfoLog(program));
+      gl.detachShader(program, vertexShader);
+      gl.detachShader(program, fragmentShader);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
       gl.deleteProgram(program);
       return;
     }
 
+    gl.detachShader(program, vertexShader);
+    gl.detachShader(program, fragmentShader);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+
     const positionBuffer = gl.createBuffer();
     const vao = gl.createVertexArray();
+
+    if (!positionBuffer || !vao) {
+      if (positionBuffer) gl.deleteBuffer(positionBuffer);
+      if (vao) gl.deleteVertexArray(vao);
+      gl.deleteProgram(program);
+      return;
+    }
 
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -325,6 +351,13 @@ export default function NeonFogGrid({
     );
 
     const positionLocation = gl.getAttribLocation(program, 'position');
+    if (positionLocation === -1) {
+      console.error('Shader attribute error: position attribute not found');
+      gl.deleteBuffer(positionBuffer);
+      gl.deleteVertexArray(vao);
+      gl.deleteProgram(program);
+      return;
+    }
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
@@ -336,6 +369,7 @@ export default function NeonFogGrid({
       uPerspective: gl.getUniformLocation(program, 'uPerspective'),
       uHorizon: gl.getUniformLocation(program, 'uHorizon'),
       uGridGlow: gl.getUniformLocation(program, 'uGridGlow'),
+      uGlobalSpeed: gl.getUniformLocation(program, 'uGlobalSpeed'),
       uFogIntensity: gl.getUniformLocation(program, 'uFogIntensity'),
       uFogSpeed: gl.getUniformLocation(program, 'uFogSpeed'),
       uGrainAmount: gl.getUniformLocation(program, 'uGrainAmount'),
@@ -384,7 +418,7 @@ export default function NeonFogGrid({
       lastTime = time;
 
       const effectiveSpeed = (p.staticMode || isReducedMotion.current) ? 0 : p.speed;
-      accumulatedTime += (deltaTime * 0.001) * effectiveSpeed;
+      accumulatedTime += deltaTime * 0.001;
 
       gl.useProgram(program);
       gl.bindVertexArray(vao);
@@ -396,6 +430,7 @@ export default function NeonFogGrid({
       gl.uniform1f(locations.uPerspective, p.perspective);
       gl.uniform1f(locations.uHorizon, p.horizon);
       gl.uniform1f(locations.uGridGlow, p.gridGlow);
+      gl.uniform1f(locations.uGlobalSpeed, effectiveSpeed);
       gl.uniform1f(locations.uFogIntensity, p.fogIntensity);
       gl.uniform1f(locations.uFogSpeed, p.fogSpeed);
       gl.uniform1f(locations.uGrainAmount, p.grainAmount);
@@ -426,8 +461,6 @@ export default function NeonFogGrid({
       
       gl.deleteBuffer(positionBuffer);
       gl.deleteVertexArray(vao);
-      gl.deleteShader(vertexShader);
-      gl.deleteShader(fragmentShader);
       gl.deleteProgram(program);
     };
   }, []);

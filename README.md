@@ -8,6 +8,14 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/df7f69c1-cf57-4290-91df-89b52c48c0c6
 
+## Repo doctrine for agents
+
+If you're an AI agent working in this repo, read `AGENTS.md` first:
+
+- `/Users/steisaden/Development/shaderz/galaxy-swirl-shader/AGENTS.md`
+
+It contains the project rules for shader research, design quality, preset architecture, controls, QA, and marketability standards.
+
 ## Run Locally
 
 **Prerequisites:**  Node.js

@@ -4,6 +4,7 @@ import GalaxySwirl from './galaxy-swirl/galaxy-swirl.component';
 import GridBackground from './grid-background/grid-background.component';
 import NeonFogGrid from './neon-fog/neon-fog.component';
 import NorthernLightsBackground from './northern-lights/northern-lights.component';
+import AuraBackground from './aura/aura.component';
 import GalaxyOrb from './galaxy-orb/galaxy-orb.component';
 import DriftingContours from './drifting-contours/drifting-contours.component';
 import RetroGridShader from '../RetroGridShader';
@@ -296,6 +297,33 @@ export const PRESET_REGISTRY: Record<string, PresetDefinition> = {
       length: 2.38,
       width: 1.84,
       auroraProfile: 0
+    },
+    controls: withControlMetadata([
+      { label: 'Speed', propName: 'speed', min: 0, max: 3, step: 0.01 },
+      { label: 'Color Intensity', propName: 'colorIntensity', min: 0, max: 3, step: 0.1 },
+      { label: 'Primary Color', propName: 'color1', kind: 'color' },
+      { label: 'Secondary Color', propName: 'color2', kind: 'color' },
+      { label: 'Accent Color', propName: 'color3', kind: 'color' },
+      { label: 'Length', propName: 'length', min: 0.1, max: 5.0, step: 0.1 },
+      { label: 'Width', propName: 'width', min: 0.1, max: 5.0, step: 0.1 }
+    ])
+  },
+  aura: {
+    id: 'aura',
+    name: 'Aura',
+    description: 'A flowing emerald aurora with domain-warped ribbons, spectral blue-violet crowns, and a soft volumetric curtain.',
+    category: 'Aurora',
+    version: '1.0.0',
+    component: AuraBackground,
+    defaultProps: {
+      speed: 0.62,
+      colorIntensity: 1.22,
+      color1: [0.11, 0.95, 0.56],
+      color2: [0.10, 0.73, 1.0],
+      color3: [0.60, 0.30, 1.0],
+      length: 2.7,
+      width: 1.55,
+      auraStyle: 0.36
     },
     controls: withControlMetadata([
       { label: 'Speed', propName: 'speed', min: 0, max: 3, step: 0.01 },

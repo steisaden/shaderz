@@ -529,7 +529,7 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="mt-3 space-y-2.5 max-[430px]:mt-2.5 max-[430px]:space-y-2">
+              <div className="mt-3 max-h-[38svh] space-y-2.5 overflow-y-auto overscroll-contain pr-1 touch-pan-y max-[430px]:mt-2.5 max-[430px]:max-h-[34svh] max-[430px]:space-y-2">
                 {visiblePresets.map((preset) => {
                   const isActive = preset.id === activePreset.id;
                   const isFeatured = FEATURED_PRESETS.has(preset.id);

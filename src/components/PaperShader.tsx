@@ -150,10 +150,11 @@ float voronoi(vec2 p) {
 
 float paperFiber(vec2 uv, float scale, float strength) {
   vec2 p = uv * scale;
-  float threads = noise(vec2(p.x, p.y * 6.0));
-  float weave = noise(vec2(p.y * 1.15, p.x * 3.7));
-  float hair = fbm(p * 0.65 + 3.0);
-  return (mix(threads, weave, 0.48) + hair * 0.25 - 0.5) * strength;
+  float threads = noise(vec2(p.x * 1.15, p.y * 5.6));
+  float weave = noise(vec2(p.y * 1.25, p.x * 3.9));
+  float hair = fbm(p * 0.7 + vec2(2.0, -1.5));
+  float filament = 1.0 - abs(noise(vec2(p.x * 0.45, p.y * 10.0)) * 2.0 - 1.0);
+  return ((mix(threads, weave, 0.52) * 0.7 + hair * 0.22 + filament * 0.18) - 0.45) * strength;
 }
 
 float paperGrain(vec2 uv, float amount, float time) {
@@ -161,11 +162,11 @@ float paperGrain(vec2 uv, float amount, float time) {
 }
 
 float foldField(vec2 uv, float amount) {
-  float centerX = smoothstep(0.14, 0.0, abs(uv.x - 0.5));
-  float centerY = smoothstep(0.14, 0.0, abs(uv.y - 0.5));
-  float diagonal = smoothstep(0.12, 0.0, abs((uv.x + uv.y) - 1.0));
-  float otherDiagonal = smoothstep(0.12, 0.0, abs(uv.x - uv.y));
-  return (centerX + centerY * 0.9 + diagonal * 0.55 + otherDiagonal * 0.35) * amount;
+  float centerX = smoothstep(0.16, 0.0, abs(uv.x - 0.5));
+  float centerY = smoothstep(0.16, 0.0, abs(uv.y - 0.5));
+  float diagonal = smoothstep(0.14, 0.0, abs((uv.x + uv.y) - 1.0));
+  float otherDiagonal = smoothstep(0.14, 0.0, abs(uv.x - uv.y));
+  return (centerX + centerY * 0.92 + diagonal * 0.48 + otherDiagonal * 0.32) * amount;
 }
 
 float deckleMask(vec2 uv, float amount) {
@@ -174,8 +175,8 @@ float deckleMask(vec2 uv, float amount) {
   }
 
   float edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
-  float rough = fbm(uv * 12.0) * 0.02 + fbm(uv * 28.0 + 4.0) * 0.01;
-  float width = mix(0.004, 0.022, clamp(amount, 0.0, 1.0));
+  float rough = fbm(uv * 12.0) * 0.016 + fbm(uv * 28.0 + 4.0) * 0.008;
+  float width = mix(0.004, 0.024, clamp(amount, 0.0, 1.0));
   return smoothstep(0.0, width + rough * amount, edge);
 }
 
@@ -187,10 +188,10 @@ float softBanding(vec2 uv, float frequency, float phase, float softness) {
 float flutedHighlight(vec2 uv, float angle, float frequency, float time) {
   vec2 dir = vec2(cos(angle), sin(angle));
   float projected = dot(uv - 0.5, dir) * frequency;
-  float groove = sin(projected * 6.28318 + time * 1.45) * 0.5 + 0.5;
-  float ridge = pow(1.0 - abs(groove * 2.0 - 1.0), 7.0);
+  float groove = sin(projected * 6.28318 + time * 1.35) * 0.5 + 0.5;
+  float ridge = pow(1.0 - abs(groove * 2.0 - 1.0), 6.8);
   float micro = fbm(uv * frequency * 0.35 + time * 0.12);
-  return ridge * (0.6 + micro * 0.4);
+  return ridge * (0.58 + micro * 0.42);
 }
 
 vec2 liquidWarp(vec2 uv, float amount, float time) {
@@ -214,9 +215,10 @@ float inkBloom(vec2 uv, vec2 center, float spread, float softness, float time) {
 float foilBand(vec2 uv, float time, float angle) {
   vec2 dir = vec2(cos(angle), sin(angle));
   float projected = dot(uv - 0.5, dir);
-  float sweep = sin(projected * 8.0 + time * 1.6) * 0.5 + 0.5;
-  float shimmer = fbm(uv * 5.0 + time * 0.18);
-  return pow(sweep, 8.0) * (0.4 + shimmer * 0.6);
+  float sweep = sin(projected * 7.2 + time * 1.45) * 0.5 + 0.5;
+  float shimmer = fbm(uv * 6.5 + time * 0.16);
+  float ridge = pow(smoothstep(0.14, 0.98, sweep), 1.7);
+  return ridge * (0.5 + shimmer * 0.5);
 }
 
 float halftoneMask(vec2 uv, float scale) {
@@ -243,6 +245,10 @@ float spotlight(vec2 uv, vec2 center, vec2 stretch, float radius) {
   return smoothstep(radius, 0.05, length((uv - center) * stretch));
 }
 
+float paperEdgeLift(vec2 centered, float radius, float softness) {
+  return smoothstep(radius, softness, length(centered));
+}
+
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution.xy;
   vec2 centered = uv * 2.0 - 1.0;
@@ -260,72 +266,92 @@ void main() {
   float fiber = paperFiber(paperUV, u_fiberScale, u_fiberStrength);
   float grain = paperGrain(paperUV, u_grainAmount, time);
   float crease = foldField(paperUV, u_creaseAmount);
-  float sheetGlow = smoothstep(1.08, 0.12, length(centered));
-  float bodyShade = smoothstep(1.0, 0.25, length(centered));
+  float sheetGlow = smoothstep(1.1, 0.12, length(centered));
+  float bodyShade = smoothstep(1.0, 0.2, length(centered));
   float micro = ridgedFbm(paperUV * (6.0 + u_noiseScale * 2.0));
   float wearMask = deckleMask(uv, u_tornEdgeAmount);
+  float edgeLift = paperEdgeLift(centered, 1.12, 0.24);
+  float lightBand = smoothstep(-0.22, 0.72, dot(normalize(centered + vec2(0.001)), normalize(vec2(-0.72, 0.52))));
 
-  vec3 color = u_baseColor;
-  color += vec3(fiber * 0.9 + grain * 0.6 + micro * 0.035);
-  color -= crease * 0.05;
-  color += vec3(0.02, 0.02, 0.03) * sheetGlow;
+  vec3 color = mix(u_baseColor * 1.03, u_baseColor * 0.92, bodyShade * 0.48);
+  color += vec3(fiber * 0.84 + grain * 0.55 + micro * 0.03);
+  color += vec3(0.03, 0.025, 0.02) * edgeLift * 0.06;
+  color -= crease * 0.045;
+  color += vec3(0.02, 0.022, 0.03) * sheetGlow;
+  color += vec3(0.04, 0.03, 0.02) * lightBand * 0.08;
 
   if (profile < 0.5) {
-    float airy = spotlight(paperUV, vec2(0.34, 0.26), vec2(1.2, 1.05), 0.9);
-    float silk = flutedHighlight(paperUV, 0.62, 10.0, time * 0.35);
-    float bloom = fbm(paperUV * 5.0 + vec2(time * 0.06, -time * 0.04));
-    float dust = voronoi(paperUV * 36.0) * 0.14;
-    color = mix(color, vec3(0.965, 0.955, 0.915), 0.6);
-    color += vec3(0.08, 0.06, 0.02) * airy * 0.12;
-    color += u_secondaryAccent * silk * 0.045;
-    color += u_accentColor * (0.04 + bloom * 0.02) * spotlight(paperUV, vec2(0.56, 0.54), vec2(0.9, 1.0), 0.82);
-    color += vec3(dust) * 0.012;
+    float airy = spotlight(paperUV, vec2(0.36, 0.28), vec2(1.18, 1.02), 0.92);
+    float silk = flutedHighlight(paperUV, 0.72, 11.0, time * 0.3);
+    float bloom = fbm(paperUV * 5.1 + vec2(time * 0.05, -time * 0.04));
+    float dust = voronoi(paperUV * 36.0) * 0.1;
+    float fiberGlow = smoothstep(0.25, 0.92, fiber + grain * 2.5);
+    color = mix(color, vec3(0.968, 0.958, 0.928), 0.6);
+    color += vec3(0.08, 0.05, 0.02) * airy * 0.12;
+    color += u_secondaryAccent * silk * 0.05;
+    color += u_accentColor * bloom * 0.03;
+    color += vec3(0.03, 0.025, 0.012) * spotlight(paperUV, vec2(0.58, 0.52), vec2(0.94, 1.0), 0.82) * 0.05;
+    color += vec3(0.02, 0.015, 0.015) * fiberGlow * 0.04;
+    color += vec3(dust) * 0.01;
   } else if (profile < 1.5) {
     float sheen = foilBand(paperUV, time * u_foilSpeed, u_foilAngle);
-    float fluted = flutedHighlight(paperUV, u_foilAngle, 19.0, time * 0.4);
-    float emboss = ridgedFbm(paperUV * 8.0 + time * 0.03);
+    float fluted = flutedHighlight(paperUV, u_foilAngle, 19.0, time * 0.36);
+    float emboss = ridgedFbm(paperUV * 8.2 + time * 0.03);
     float glow = spotlight(paperUV, vec2(0.52, 0.44), vec2(1.05, 0.92), 0.78);
-    color = mix(color, vec3(0.90, 0.78, 0.60), 0.35);
+    float highlight = paperEdgeLift(centered, 0.94, 0.18);
+    color = mix(color, vec3(0.9, 0.78, 0.61), 0.34);
     color += vec3(0.08, 0.04, 0.01) * emboss * 0.05;
-    color += mix(u_accentColor, u_secondaryAccent, 0.28) * sheen * u_foilAmount * 1.9;
-    color += mix(vec3(0.98, 0.88, 0.55), u_accentColor, fluted) * 0.08;
-    color += u_secondaryAccent * glow * 0.035;
-    color += vec3(0.03, 0.02, 0.01) * grain * 0.5;
+    color += mix(u_accentColor, u_secondaryAccent, 0.28) * sheen * (u_foilAmount * 1.7 + 0.2);
+    color += mix(vec3(0.985, 0.88, 0.56), u_accentColor, fluted) * 0.085;
+    color += u_secondaryAccent * glow * 0.045;
+    color += vec3(0.03, 0.02, 0.01) * grain * 0.38;
+    color += vec3(0.04, 0.03, 0.02) * highlight * 0.05;
   } else if (profile < 2.5) {
-    vec2 fluidUV = liquidWarp(paperUV, max(u_paperWarp, 0.16) + 0.24, time);
-    vec2 centerA = vec2(0.34, 0.43);
+    vec2 fluidUV = liquidWarp(paperUV, max(u_paperWarp, 0.16) + 0.26, time);
+    vec2 centerA = vec2(0.33, 0.43);
     vec2 centerB = vec2(0.67, 0.58);
-    float bloomA = inkBloom(fluidUV, centerA, 0.18 + u_inkBleedAmount * 0.28, u_inkSoftness * 0.9, time * u_inkBleedSpeed);
-    float bloomB = inkBloom(fluidUV, centerB, 0.14 + u_inkBleedAmount * 0.24, u_inkSoftness * 1.05, time * u_inkBleedSpeed * 1.15);
-    float pooled = max(bloomA, bloomB);
-    float plume = fbm(fluidUV * 4.5 + vec2(time * 0.08, -time * 0.05));
-    float tide = smoothstep(0.12, 0.78, fbm(fluidUV * 2.0 + time * 0.03));
-    float haloA = spotlight(fluidUV, centerA, vec2(1.0, 1.15), 0.82);
-    float haloB = spotlight(fluidUV, centerB, vec2(1.05, 0.95), 0.74);
-    float bloomRim = smoothstep(0.15, 0.98, plume);
-    color = mix(color, u_inkColor, pooled * 0.82);
-    color += u_accentColor * bloomA * 0.16;
-    color += u_secondaryAccent * bloomB * 0.14;
-    color += mix(u_secondaryAccent, u_accentColor, plume) * plume * 0.085;
-    color += vec3(0.12, 0.09, 0.08) * (haloA + haloB) * 0.05;
-    color += vec3(0.06, 0.07, 0.1) * tide * 0.055;
-    color += vec3(0.025, 0.02, 0.035) * softBanding(fluidUV, 7.0, time * 0.15, 0.2) * 0.06;
-    color += mix(u_accentColor, u_secondaryAccent, bloomRim) * bloomRim * 0.025;
+    vec2 centerC = vec2(0.54, 0.34);
+    float bloomA = inkBloom(fluidUV, centerA, 0.18 + u_inkBleedAmount * 0.3, u_inkSoftness * 0.9, time * u_inkBleedSpeed);
+    float bloomB = inkBloom(fluidUV, centerB, 0.14 + u_inkBleedAmount * 0.25, u_inkSoftness * 1.0, time * u_inkBleedSpeed * 1.08);
+    float bloomC = inkBloom(fluidUV, centerC, 0.11 + u_inkBleedAmount * 0.18, u_inkSoftness * 0.88, time * u_inkBleedSpeed * 0.78);
+    float coreA = pow(bloomA, 1.35);
+    float coreB = pow(bloomB, 1.4);
+    float coreC = pow(bloomC, 1.45);
+    float pooled = max(max(coreA, coreB), coreC);
+    float plume = fbm(fluidUV * 4.7 + vec2(time * 0.08, -time * 0.05));
+    float tide = smoothstep(0.14, 0.82, fbm(fluidUV * 2.2 + time * 0.03));
+    float haloA = spotlight(fluidUV, centerA, vec2(1.0, 1.12), 0.84);
+    float haloB = spotlight(fluidUV, centerB, vec2(1.04, 0.96), 0.76);
+    float haloC = spotlight(fluidUV, centerC, vec2(1.15, 1.0), 0.72);
+    float bloomRim = smoothstep(0.12, 0.98, plume);
+    float capillary = smoothstep(0.08, 0.82, fbm(fluidUV * 7.0 + time * 0.08));
+    color = mix(color, u_inkColor, pooled * 0.92);
+    color += u_accentColor * coreA * 0.22;
+    color += u_secondaryAccent * coreB * 0.2;
+    color += mix(u_secondaryAccent, u_accentColor, plume) * coreC * 0.11;
+    color += vec3(0.13, 0.09, 0.08) * (haloA + haloB + haloC) * 0.055;
+    color += vec3(0.07, 0.08, 0.11) * tide * 0.055;
+    color += vec3(0.024, 0.02, 0.034) * softBanding(fluidUV, 7.0, time * 0.15, 0.2) * 0.05;
+    color += mix(u_accentColor, u_secondaryAccent, bloomRim) * bloomRim * 0.028;
+    color += vec3(0.02, 0.03, 0.04) * capillary * 0.08;
+    color -= vec3(0.018, 0.012, 0.02) * (1.0 - pooled) * 0.04;
   } else if (profile < 3.5) {
-    vec2 jitter = vec2((hash21(vec2(uv.y * 220.0, time)) - 0.5) * 0.018, 0.0);
+    vec2 jitter = vec2((hash21(vec2(uv.y * 220.0, time)) - 0.5) * 0.016, 0.0);
     float copyA = smoothstep(0.52, 0.18, length((paperUV + jitter) - vec2(0.5)));
-    float copyB = smoothstep(0.58, 0.20, length((paperUV + jitter + vec2(0.016, -0.01)) - vec2(0.5)));
+    float copyB = smoothstep(0.58, 0.2, length((paperUV + jitter + vec2(0.016, -0.01)) - vec2(0.5)));
     float ghost = max(copyA, copyB) * u_ghostAmount;
-    float scan = (sin(uv.y * 240.0 + time * 10.0) * 0.5 + 0.5) * 0.05;
+    float scan = (sin(uv.y * 242.0 + time * 9.5) * 0.5 + 0.5) * 0.038;
     float dither = halftoneMask(paperUV + vec2(0.0, time * 0.012), max(u_halftoneScale, 96.0));
     float dust = fbm(paperUV * 120.0 + time * 0.2);
-    float toner = smoothstep(0.26, 0.82, fbm(paperUV * 6.0 + time * 0.03));
-    color = mix(color, vec3(0.09, 0.1, 0.105), ghost * 0.58);
-    color += u_inkColor * ghost * 0.35;
+    float toner = smoothstep(0.24, 0.84, fbm(paperUV * 6.0 + time * 0.03));
+    float shadow = 1.0 - paperEdgeLift(centered, 1.0, 0.2);
+    color = mix(color, vec3(0.095, 0.1, 0.105), ghost * 0.58);
+    color += u_inkColor * ghost * 0.34;
     color -= scan;
-    color += vec3(dither) * 0.025;
-    color += vec3(dust) * 0.018;
-    color += vec3(toner) * 0.02;
+    color += vec3(dither) * 0.024;
+    color += vec3(dust) * 0.017;
+    color += vec3(toner) * 0.018;
+    color += vec3(0.02, 0.02, 0.025) * shadow * 0.04;
   } else if (profile < 4.5) {
     float dots = halftoneMask(paperUV + vec2(u_printOffset, -u_printOffset), u_halftoneScale);
     float passR = fbm((paperUV + vec2(u_printOffset * 1.8, 0.0)) * 7.0 + time * 0.05);
@@ -337,38 +363,50 @@ void main() {
     float panelC = smoothstep(0.22, 0.78, fract(paperUV.x * 2.2 + paperUV.y * 0.35));
     float neonCore = spotlight(paperUV, vec2(0.53, 0.48), vec2(1.0, 1.0), 0.88);
     float cmykSplit = smoothstep(0.15, 0.9, fbm(paperUV * 4.2 + vec2(time * 0.06, -time * 0.04)));
-    color = mix(color, misreg, min(u_printOffset * 24.0, 1.0) * 0.54);
-    color = mix(color, mix(u_accentColor, u_secondaryAccent, 0.5), dots * u_halftoneAmount * 0.95);
+    color = mix(color, misreg, min(u_printOffset * 24.0, 1.0) * 0.5);
+    color = mix(color, mix(u_accentColor, u_secondaryAccent, 0.5), dots * u_halftoneAmount * 0.92);
     color += u_inkColor * dots * 0.07;
     color += vec3(0.02, 0.01, 0.03) * softBanding(paperUV, 14.0, time * 0.08, 0.14) * 0.05;
     color += mix(u_accentColor, u_secondaryAccent, panelB) * panelA * 0.05;
     color += mix(u_secondaryAccent, u_accentColor, panelC) * 0.03;
     color += (u_accentColor * 0.05 + u_secondaryAccent * 0.035) * neonCore;
-    color += vec3(0.04, 0.02, 0.06) * cmykSplit * 0.03;
+    color += vec3(0.03, 0.02, 0.05) * cmykSplit * 0.03;
   } else if (profile < 5.5) {
     float soot = 1.0 - deckleMask(uv, max(u_tornEdgeAmount, 0.12));
     float ember = fbm(paperUV * 11.0 + time * 0.03);
     float smoke = fbm(paperUV * 4.0 + vec2(0.0, time * 0.02));
     float scorch = fbm(paperUV * 18.0 + vec2(time * 0.02, time * 0.01));
     float ash = ridgedFbm(paperUV * 7.5 + time * 0.02);
-    color = mix(color, vec3(0.50, 0.31, 0.16), 0.22);
+    float heat = smoothstep(0.45, 0.98, ember);
+    color = mix(color, vec3(0.5, 0.31, 0.16), 0.22);
     color -= soot * 0.28;
-    color += u_accentColor * smoothstep(0.72, 0.98, ember) * 0.08;
+    color += u_accentColor * heat * 0.08;
     color += u_secondaryAccent * smoke * 0.055;
-    color += vec3(0.30, 0.11, 0.04) * smoothstep(0.74, 1.0, scorch) * 0.07;
+    color += vec3(0.3, 0.11, 0.04) * smoothstep(0.72, 1.0, scorch) * 0.075;
     color += vec3(ash * 0.06) * (1.0 - soot * 0.65);
+    color += vec3(0.03, 0.02, 0.01) * edgeLift * 0.05;
   } else if (profile < 6.5) {
     float sheen = foilBand(paperUV, time * u_foilSpeed, u_foilAngle);
     float fluted = flutedHighlight(paperUV, u_foilAngle, 16.0, time * 0.22);
     float liquid = fbm(paperUV * 5.5 + vec2(time * 0.11, -time * 0.07));
     float prismShift = fbm(paperUV * 2.0 + time * 0.08);
+    float spectral = fbm(paperUV * 3.2 + vec2(time * 0.05, -time * 0.04));
+    float facet = smoothstep(0.22, 0.96, ridgedFbm(paperUV * 7.8 + vec2(time * 0.1, -time * 0.07)));
+    float sparkle = smoothstep(0.72, 0.98, fbm(paperUV * 28.0 + time * 0.18));
+    float rim = 1.0 - paperEdgeLift(centered, 0.92, 0.18);
     vec3 prism = mix(u_accentColor, u_secondaryAccent, 0.5);
-    color = mix(color, vec3(0.09, 0.1, 0.14), 0.52);
-    color += prism * sheen * u_foilAmount * 1.9;
-    color += vec3(sheen * 0.12, sheen * 0.07, sheen * 0.18);
-    color += mix(vec3(0.03, 0.04, 0.06), prism, fluted) * 0.075;
-    color += vec3(0.55, 0.18, 0.75) * liquid * 0.045;
-    color += vec3(0.08, 0.12, 0.18) * prismShift * 0.05;
+    vec3 chrome = mix(vec3(0.12, 0.13, 0.18), vec3(0.96, 0.96, 1.0), sheen);
+    vec3 spectralWarm = mix(vec3(0.94, 0.58, 0.28), vec3(0.84, 0.34, 0.92), spectral);
+    vec3 spectralCool = mix(vec3(0.26, 0.86, 1.0), vec3(0.58, 0.72, 1.0), liquid);
+    color = mix(color, vec3(0.08, 0.09, 0.13), 0.42);
+    color += prism * sheen * (u_foilAmount * 1.45 + 0.12);
+    color += mix(spectralWarm, spectralCool, 0.5) * fluted * 0.08;
+    color += mix(vec3(0.03, 0.04, 0.06), prism, facet) * 0.08;
+    color += chrome * liquid * 0.04;
+    color += vec3(0.08, 0.12, 0.18) * prismShift * 0.04;
+    color += mix(vec3(0.02, 0.03, 0.05), prism, lightBand) * 0.05;
+    color += vec3(0.04, 0.05, 0.08) * rim * 0.05;
+    color += mix(vec3(0.03, 0.05, 0.07), spectralWarm, sparkle) * 0.03;
   } else {
     float grid = blueprintMask(paperUV, max(u_blueprintGrid, 0.05) * 24.0);
     float hatch = 1.0 - smoothstep(0.0, 0.02, abs(fract((paperUV.x + paperUV.y * 0.65) * 120.0) - 0.5));
@@ -385,16 +423,17 @@ void main() {
     color += vec3(0.03, 0.05, 0.08) * blueprintFog * 0.04;
   }
 
+  color = mix(color, color * wearMask + u_baseColor * (1.0 - wearMask), 0.18);
   color *= mix(1.0, wearMask, clamp(1.0 - u_tornEdgeAmount * 2.0, 0.0, 1.0));
   color -= (1.0 - wearMask) * u_edgeDarkness * 0.24;
 
   float vignetteStrength = clamp(u_vignetteAmount, 0.0, 2.0);
   if (vignetteStrength > 0.0) {
-    float vignette = smoothstep(1.18, 0.22, length(centered));
-    color *= mix(1.0, vignette, vignetteStrength * 0.18);
+    float vignette = smoothstep(1.2, 0.22, length(centered));
+    color *= mix(1.0, vignette, vignetteStrength * 0.16);
   }
 
-  color += vec3(0.015, 0.015, 0.02) * (bodyShade - 0.5) * 0.4;
+  color += vec3(0.015, 0.015, 0.02) * (bodyShade - 0.5) * 0.34;
   color = (color - 0.5) * max(u_contrast, 0.0) + 0.5 + u_brightness - 1.0;
   color = max(color, 0.0);
 
